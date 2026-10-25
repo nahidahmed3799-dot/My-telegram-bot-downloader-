@@ -4,7 +4,6 @@ from flask import Flask
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 
-# UptimeRobot-এর জন্য পিং সার্ভার
 app = Flask(__name__)
 
 @app.route("/")
@@ -12,7 +11,7 @@ def home():
     return "Universal Downloader Bot is Running 24/7!"
 
 def run_flask():
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
 API_ID = 31609403
@@ -22,11 +21,10 @@ CHANNEL_TAG = "@UniversalDownloaderProBot"
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# সেশন স্ট্রিং লোড
 session_string = os.environ.get("USER_SESSION_B64", "").strip()
 
 bot = TelegramClient("bot_session", API_ID, API_HASH)
-user_bot = TelegramClient(StringSession(session_string), API_ID, API_HASH)
+user_bot = TelegramClient(StringSession(session_string), API_ID, API_HASH) if session_string else None
 
 async def progress_callback(current, total, event, status_msg, action_name, start_time):
     now = time.time()
@@ -35,7 +33,7 @@ async def progress_callback(current, total, event, status_msg, action_name, star
         percent = (current / total) * 100
         speed = current / (diff * 1024 * 1024)
         try:
-            txt = action_name + ": " + str(round(percent, 1)) + "% | Speed: " + str(round(speed, 2)) + " MB/s"
+            txt = f"{action_name}: {round(percent, 1)}% | Speed: {round(speed, 2)} MB/s"
             await status_msg.edit(txt)
         except Exception:
             pass
@@ -50,6 +48,9 @@ async def message_handler(event):
     if not raw or raw.startswith("/"):
         return
     if "t.me/" in raw:
+        if not user_bot:
+            return await event.respond("❌ ইউজার সেশন সেট করা নেই!")
+
         match_single = re.search(r"https://t\.me/(?:c/)?([^/]+)/(\d+)", raw)
         if not match_single:
             return
@@ -60,7 +61,7 @@ async def message_handler(event):
             target_chat = None
             if raw_channel.isdigit():
                 c_id = int(raw_channel)
-                for cid in [int("-100" + str(c_id)), c_id]:
+                for cid in [int(f"-100{c_id}"), c_id]:
                     try:
                         target_chat = await user_bot.get_entity(cid)
                         if target_chat:
@@ -91,32 +92,44 @@ async def message_handler(event):
 
             for idx, m in enumerate(msgs_to_dl, 1):
                 if m.media or m.file:
-                    await status.edit("⬇️ ডাউনলোড হচ্ছে (" + str(idx) + "/" + str(len(msgs_to_dl)) + ")...")
+                    await status.edit(f"⬇️ ডাউনলোড হচ্ছে ({idx}/{len(msgs_to_dl)})...")
                     fpath = await user_bot.download_media(m, file=DOWNLOAD_DIR)
                     if fpath and os.path.exists(fpath):
                         st_up = time.time()
                         await bot.send_file(
                             event.chat_id,
                             fpath,
-                            caption="⚡ Downloaded via " + CHANNEL_TAG,
+                            caption=f"⚡ Downloaded via {CHANNEL_TAG}",
                             force_document=True,
                             progress_callback=lambda c, t: progress_callback(c, t, event, status, "⬆️ আপলোড হচ্ছে", st_up)
                         )
                         os.remove(fpath)
             await status.delete()
         except Exception as e:
-            await status.edit("❌ ত্রুটি: " + str(e))
+            await status.edit(f"❌ ত্রুটি: {str(e)}")
 
-async def main():
-    threading.Thread(target=run_flask, daemon=True).start()
-    await bot.start(bot_token=BOT_TOKEN)
-    if session_string:
+async def start_services():
+    t = threading.Thread(target=run_flask, daemon=True)
+    t.start()
+
+    if user_bot:
         try:
-            await user_bot.start()
-        except Exception:
-            pass
+            await user_bot.connect()
+            if not await user_bot.is_user_authorized():
+                print("Warning: User session unauthorized!")
+            else:
+                print("✅ User account connected successfully!")
+        except Exception as e:
+            print(f"User bot connect error: {e}")
+
+    await bot.start(bot_token=BOT_TOKEN)
     print("Bot is alive and running!")
     await bot.run_until_disconnected()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(start_services())
+    finally:
+        loop.close()
