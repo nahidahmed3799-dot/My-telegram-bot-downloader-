@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-import os, re, time, base64, threading, asyncio
+import os, re, time, threading, asyncio
 from flask import Flask
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 
 # UptimeRobot-এর জন্য পিং সার্ভার
 app = Flask(__name__)
@@ -21,14 +22,11 @@ CHANNEL_TAG = "@UniversalDownloaderProBot"
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# সেশন রিস্টোর
-session_b64 = os.environ.get("USER_SESSION_B64", "").strip()
-if session_b64 and not os.path.exists("user_session.session"):
-    with open("user_session.session", "wb") as sf:
-        sf.write(base64.b64decode(session_b64))
+# সেশন স্ট্রিং
+session_string = os.environ.get("USER_SESSION_B64", "").strip()
 
 bot = TelegramClient("bot_session", API_ID, API_HASH)
-user_bot = TelegramClient("user_session", API_ID, API_HASH)
+user_bot = TelegramClient(StringSession(session_string), API_ID, API_HASH)
 
 async def progress_callback(current, total, event, status_msg, action_name, start_time):
     now = time.time()
@@ -112,7 +110,7 @@ async def message_handler(event):
 async def main():
     threading.Thread(target=run_flask, daemon=True).start()
     await bot.start(bot_token=BOT_TOKEN)
-    if os.path.exists("user_session.session"):
+    if session_string:
         try:
             await user_bot.start()
         except Exception:
