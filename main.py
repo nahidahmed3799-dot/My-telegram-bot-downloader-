@@ -17,12 +17,12 @@ def run_flask():
 
 API_ID = 31609403
 API_HASH = "4a320ca3258d0171b477266910c10a75"
-BOT_TOKEN = "7963242095:AAECn7gV6n7o6v3xZ0GgVp_v1aG2h9y_vYo"
+BOT_TOKEN = "8639277798:AAEUOM5lt1TnW4b-Hnf_XpO3dFSiEitg_Mg"
 CHANNEL_TAG = "@UniversalDownloaderProBot"
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# সেশন স্ট্রিং
+# সেশন স্ট্রিং লোড
 session_string = os.environ.get("USER_SESSION_B64", "").strip()
 
 bot = TelegramClient("bot_session", API_ID, API_HASH)
